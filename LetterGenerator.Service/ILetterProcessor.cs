@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace LetterGenerator.Service
+﻿namespace LetterGenerator.Service
 {
-    interface ILetterProcessor
+    public interface ILetterProcessor
     {
+        decimal CalculateCreditCharge(decimal annualPremium);
+        decimal[] CalculateMonthlyPayments(decimal averageMonthlyPremium, decimal annualPremiumPlusCreditCharge);
+        bool CheckValidAmount(string amount);
     }
 }
