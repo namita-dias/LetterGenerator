@@ -1,16 +1,40 @@
 using LetterGenerator.Service;
+using LetterGenerator.Service.Models;
 using NUnit.Framework;
+using System.Collections.Generic;
+using System.IO;
 
 namespace LetterGenerator.Tests
 {
     public class Tests
     {
         private ILetterProcessor letterProcessor;
+        private IEnumerable<Customer> customers;
+        private string outputFileName;
 
         [SetUp]
         public void Setup()
         {
+            customers = new Customer[] 
+            { 
+                new Customer
+                {
+                    Id = 1,
+                    FirstName = "TestFirstName",
+                    Surname = "TestSurname",
+                    ProductName = "Test Product",
+                    PayoutAmount = 200000,
+                    AnnualPremium = 150
+                }
+            };
+
             letterProcessor = new LetterProcessor();
+
+            letterProcessor.dataFilePath = "..\\..\\..\\InputFiles\\Customer.csv";
+            letterProcessor.templateFilePath = "..\\..\\..\\InputFiles\\Email_Template.txt";
+            letterProcessor.outputFilePath = "..\\..\\..\\OutputFiles";
+
+            outputFileName = "1TestFirstNameTestSurname.txt";
         }
 
         [TestCase("125")]
@@ -73,6 +97,38 @@ namespace LetterGenerator.Tests
             //assert
             Assert.AreEqual(0, result[0]);
             Assert.AreEqual(0, result[1]);
+        }
+
+        [Test]
+        public void ProcessCustomer_ValidCustomer_CreatesLetter()
+        {
+            //arrange
+            string path = Path.Combine(letterProcessor.outputFilePath, outputFileName);
+            // Delete the file if it exists.
+            if (File.Exists(path))
+                File.Delete(path);
+
+            //act
+            letterProcessor.ProcessCustomer(customers);
+
+            //assert
+            Assert.IsTrue(File.Exists(path));
+        }
+
+        [Test]
+        public void ProcessCustomer_InValidCustomer_LetterNotCreated()
+        {
+            //arrange
+            string path = Path.Combine(letterProcessor.outputFilePath, outputFileName);
+            // Delete the file if it exists.
+            if (File.Exists(path))
+                File.Delete(path);
+
+            //act
+            letterProcessor.ProcessCustomer(null);
+
+            //assert
+            Assert.IsFalse(File.Exists(path));
         }
     }
 }

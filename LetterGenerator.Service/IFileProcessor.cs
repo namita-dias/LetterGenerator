@@ -7,5 +7,6 @@ namespace LetterGenerator.Service
     public interface IFileProcessor
     {
         bool FileExists(string path);
+        void WriteFile(string text, string outputFilePath, string fileName);
     }
 }

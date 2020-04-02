@@ -1,5 +1,9 @@
-﻿using System;
+﻿using CsvHelper;
+using LetterGenerator.Service.Models;
+using StringTokenFormatter;
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text;
 
@@ -58,7 +62,69 @@ namespace LetterGenerator.Service
             // If both the input files exist then process the .csv file
             if (fileProcessor.FileExists(dataFilePath)
                 && fileProcessor.FileExists(templateFilePath))
-                LoadTemplate();
+                ProcessData();
+        }
+
+        /// <summary>
+        /// Read the csv file using CsvReader and store the rows in a collection of 'Customer' model.
+        /// </summary>
+        public void ProcessData()
+        {
+            try
+            {
+                IEnumerable<Customer> data = null;
+                using (var streamReader = new StreamReader(dataFilePath))
+                using (var csvReader = new CsvReader(streamReader, CultureInfo.InvariantCulture))
+                {
+                    csvReader.Configuration.RegisterClassMap<CustomerMap>();
+                    data = csvReader.GetRecords<Customer>();
+                    ProcessCustomer(data);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Could not read the file - " + dataFilePath, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Process the customer records.
+        /// </summary>
+        /// <param name="customers"></param>
+        public void ProcessCustomer(IEnumerable<Customer> customers)
+        {
+            try
+            {
+                if (customers == null)
+                {
+                    Console.WriteLine("No data to process");
+                    return;
+                }
+                else
+                {
+                    foreach (Customer customer in customers)
+                    {
+                        // Load the email template
+                        string templateText = String.Empty;
+                        templateText = LoadTemplate();
+
+                        // Get values for the email template tokens
+                        string outputText = String.Empty;
+                        if (!String.IsNullOrEmpty(templateText))
+                            outputText = LoadValues(templateText, customer);
+
+                        // Write the output file 
+                        if (!String.IsNullOrEmpty(outputText))
+                            fileProcessor.WriteFile(outputText, outputFilePath,
+                                                    $"{customer.Id}{customer.FirstName}{customer.Surname}.txt");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error processing data." + ex.Message);
+                return;
+            }
         }
 
         /// <summary>
@@ -70,6 +136,58 @@ namespace LetterGenerator.Service
             StreamReader sr = new StreamReader(templateFilePath);
             string templateText = sr.ReadToEnd();
             return templateText;
+        }
+
+        /// <summary>
+        /// Calculate the total premium and monthly charges. Load values to the email template tokens.
+        /// </summary>
+        /// <param name="templateText"></param>
+        /// <param name="customer"></param>
+        /// <returns></returns>
+        public string LoadValues(string templateText, Customer customer)
+        {
+            try
+            {
+                // Invalid values
+                if (!CheckValidAmount(customer.PayoutAmount.ToString())
+                    || !CheckValidAmount(customer.AnnualPremium.ToString())
+                    || customer.PayoutAmount <= 0
+                    || customer.AnnualPremium <= 0)
+                    return String.Empty;
+
+                decimal creditCharge = CalculateCreditCharge(customer.AnnualPremium);
+                decimal annualPremiumPlusCreditCharge = customer.AnnualPremium + creditCharge;
+                decimal averageMonthlyPremium = annualPremiumPlusCreditCharge / 12;
+                decimal[] monthlyPayments = CalculateMonthlyPayments(averageMonthlyPremium, annualPremiumPlusCreditCharge);
+                decimal initialMonthlyPayment = monthlyPayments[0];
+                decimal otherMonthlyPaymentsAmount = monthlyPayments[1];
+
+                // Invalid calculated values
+                if (creditCharge <= 0
+                    || initialMonthlyPayment <= 0
+                    || otherMonthlyPaymentsAmount <= 0)
+                    return String.Empty;
+
+                var tokenValues = new
+                {
+                    CurrentDate = DateTime.Today.ToShortDateString(),
+                    FullName = $"{customer.Title} {customer.FirstName} {customer.Surname}",
+                    Salutation = $"{customer.Title} {customer.Surname}",
+                    ProductName = customer.ProductName,
+                    PayoutAmount = customer.PayoutAmount.ToString("C"),
+                    AnnualPremium = customer.AnnualPremium.ToString("C"),
+                    CreditCharge = creditCharge.ToString("C"),
+                    AnnualPremiumPlusCreditCharge = annualPremiumPlusCreditCharge.ToString("C"),
+                    InitialMonthlyPaymentAmount = initialMonthlyPayment.ToString("C"),
+                    OtherMonthlyPaymentsAmount = otherMonthlyPaymentsAmount.ToString("C")
+                };
+                return templateText.FormatToken(tokenValues);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error loading values" + ex.Message);
+                return String.Empty;
+            }
         }
 
         /// <summary>
