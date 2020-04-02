@@ -1,11 +1,76 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace LetterGenerator.Service
 {
     public class LetterProcessor : ILetterProcessor
     {
+        private string _dataFilePath;
+        public string dataFilePath
+        {
+            get
+            {
+                return _dataFilePath;
+            }
+            set
+            {
+                _dataFilePath = value;
+            }
+        }
+
+        private string _templateFilePath;
+        public string templateFilePath
+        {
+            get
+            {
+                return _templateFilePath;
+            }
+            set
+            {
+                _templateFilePath = value;
+            }
+        }
+
+        private string _outputFilePath;
+        public string outputFilePath
+        {
+            get
+            {
+                return _outputFilePath;
+            }
+            set
+            {
+                _outputFilePath = value;
+            }
+        }
+
+        IFileProcessor fileProcessor;
+
+        public LetterProcessor()
+        {
+            fileProcessor = new FileProcessor();
+        }
+
+        public void StartProcess()
+        {
+            // If both the input files exist then process the .csv file
+            if (fileProcessor.FileExists(dataFilePath)
+                && fileProcessor.FileExists(templateFilePath))
+                LoadTemplate();
+        }
+
+        /// <summary>
+        /// Read the email template file
+        /// </summary>
+        /// <returns></returns>
+        public string LoadTemplate()
+        {
+            StreamReader sr = new StreamReader(templateFilePath);
+            string templateText = sr.ReadToEnd();
+            return templateText;
+        }
 
         /// <summary>
         /// Check if the amount is numeric. Used double to check both int and decimal

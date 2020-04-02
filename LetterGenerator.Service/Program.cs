@@ -6,7 +6,15 @@ namespace LetterGenerator.Service
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            string dataFilePath = "..\\..\\..\\InputFiles\\Customer.csv";
+            string templateFilePath = "..\\..\\..\\InputFiles\\Email_Template.txt";
+            string outputFilePath = "..\\..\\..\\OutputFiles";
+
+            ILetterProcessor letterProcessor = new LetterProcessor();
+            letterProcessor.dataFilePath = dataFilePath;
+            letterProcessor.templateFilePath = templateFilePath;
+            letterProcessor.outputFilePath = outputFilePath;
+            letterProcessor.StartProcess();
         }
     }
 }
