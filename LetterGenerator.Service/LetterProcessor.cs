@@ -5,137 +5,73 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace LetterGenerator.Service
 {
     public class LetterProcessor : ILetterProcessor
     {
-        private string _dataFilePath;
-        public string dataFilePath
-        {
-            get
-            {
-                return _dataFilePath;
-            }
-            set
-            {
-                _dataFilePath = value;
-            }
-        }
 
-        private string _templateFilePath;
-        public string templateFilePath
-        {
-            get
-            {
-                return _templateFilePath;
-            }
-            set
-            {
-                _templateFilePath = value;
-            }
-        }
+        private IFileProcessor fileProcessor;
 
-        private string _outputFilePath;
-        public string outputFilePath
+        public LetterProcessor(IFileProcessor processor)
         {
-            get
-            {
-                return _outputFilePath;
-            }
-            set
-            {
-                _outputFilePath = value;
-            }
-        }
-
-        IFileProcessor fileProcessor;
-
-        public LetterProcessor()
-        {
-            fileProcessor = new FileProcessor();
+            fileProcessor = processor;
         }
 
         public void StartProcess()
         {
             // If both the input files exist then process the .csv file
-            if (fileProcessor.FileExists(dataFilePath)
-                && fileProcessor.FileExists(templateFilePath))
+            if (fileProcessor.FileExists(fileProcessor.dataFilePath)
+                && fileProcessor.FileExists(fileProcessor.templateFilePath))
                 ProcessData();
-        }
-
-        /// <summary>
-        /// Read the csv file using CsvReader and store the rows in a collection of 'Customer' model.
-        /// </summary>
-        public void ProcessData()
-        {
-            try
-            {
-                IEnumerable<Customer> data = null;
-                using (var streamReader = new StreamReader(dataFilePath))
-                using (var csvReader = new CsvReader(streamReader, CultureInfo.InvariantCulture))
-                {
-                    csvReader.Configuration.RegisterClassMap<CustomerMap>();
-                    data = csvReader.GetRecords<Customer>();
-                    ProcessCustomer(data);
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Could not read the file - " + dataFilePath, ex.Message);
-            }
         }
 
         /// <summary>
         /// Process the customer records.
         /// </summary>
-        /// <param name="customers"></param>
-        public void ProcessCustomer(IEnumerable<Customer> customers)
+        public void ProcessData()
+        {
+            List<Customer> customers = new List<Customer>();
+            customers = fileProcessor.ReadCSVFile(fileProcessor.dataFilePath);
+            if (customers.Count() > 0)
+            {
+                foreach (Customer customer in customers)
+                    ProcessCustomer(customer);
+            }
+            else
+                Console.WriteLine("No records in the file.");
+        }
+
+        /// <summary>
+        /// Process the customer
+        /// </summary>
+        /// <param name="customer"></param>
+        public void ProcessCustomer(Customer customer)
         {
             try
-            {
-                if (customers == null)
-                {
-                    Console.WriteLine("No data to process");
+            {   // Load the email template
+                string templateText = String.Empty;
+                templateText = fileProcessor.ReadTextFile(fileProcessor.templateFilePath);
+
+                // Get values for the email template tokens
+                string outputText = String.Empty;
+                if (String.IsNullOrEmpty(templateText))
                     return;
-                }
-                else
-                {
-                    foreach (Customer customer in customers)
-                    {
-                        // Load the email template
-                        string templateText = String.Empty;
-                        templateText = LoadTemplate();
+                outputText = LoadValues(templateText, customer);
 
-                        // Get values for the email template tokens
-                        string outputText = String.Empty;
-                        if (!String.IsNullOrEmpty(templateText))
-                            outputText = LoadValues(templateText, customer);
-
-                        // Write the output file 
-                        if (!String.IsNullOrEmpty(outputText))
-                            fileProcessor.WriteFile(outputText, outputFilePath,
-                                                    $"{customer.Id}{customer.FirstName}{customer.Surname}.txt");
-                    }
-                }
+                // Write the output file 
+                if (String.IsNullOrEmpty(outputText))
+                    return;
+                fileProcessor.WriteFile(outputText, fileProcessor.outputFilePath,
+                                            $"{customer.Id}{customer.FirstName}{customer.Surname}.txt");
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Error processing data." + ex.Message);
                 return;
             }
-        }
-
-        /// <summary>
-        /// Read the email template file
-        /// </summary>
-        /// <returns></returns>
-        public string LoadTemplate()
-        {
-            StreamReader sr = new StreamReader(templateFilePath);
-            string templateText = sr.ReadToEnd();
-            return templateText;
         }
 
         /// <summary>
@@ -146,59 +82,48 @@ namespace LetterGenerator.Service
         /// <returns></returns>
         public string LoadValues(string templateText, Customer customer)
         {
-            try
-            {
-                // Invalid values
-                if (!CheckValidAmount(customer.PayoutAmount.ToString())
-                    || !CheckValidAmount(customer.AnnualPremium.ToString())
-                    || customer.PayoutAmount <= 0
-                    || customer.AnnualPremium <= 0)
-                    return String.Empty;
-
-                decimal creditCharge = CalculateCreditCharge(customer.AnnualPremium);
-                decimal annualPremiumPlusCreditCharge = customer.AnnualPremium + creditCharge;
-                decimal averageMonthlyPremium = annualPremiumPlusCreditCharge / 12;
-                decimal[] monthlyPayments = CalculateMonthlyPayments(averageMonthlyPremium, annualPremiumPlusCreditCharge);
-                decimal initialMonthlyPayment = monthlyPayments[0];
-                decimal otherMonthlyPaymentsAmount = monthlyPayments[1];
-
-                // Invalid calculated values
-                if (creditCharge <= 0
-                    || initialMonthlyPayment <= 0
-                    || otherMonthlyPaymentsAmount <= 0)
-                    return String.Empty;
-
-                var tokenValues = new
-                {
-                    CurrentDate = DateTime.Today.ToShortDateString(),
-                    FullName = $"{customer.Title} {customer.FirstName} {customer.Surname}",
-                    Salutation = $"{customer.Title} {customer.Surname}",
-                    ProductName = customer.ProductName,
-                    PayoutAmount = customer.PayoutAmount.ToString("C"),
-                    AnnualPremium = customer.AnnualPremium.ToString("C"),
-                    CreditCharge = creditCharge.ToString("C"),
-                    AnnualPremiumPlusCreditCharge = annualPremiumPlusCreditCharge.ToString("C"),
-                    InitialMonthlyPaymentAmount = initialMonthlyPayment.ToString("C"),
-                    OtherMonthlyPaymentsAmount = otherMonthlyPaymentsAmount.ToString("C")
-                };
-                return templateText.FormatToken(tokenValues);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Error loading values" + ex.Message);
+            // Invalid values
+            if (!CheckValidAmount(customer.PayoutAmount)
+                || !CheckValidAmount(customer.AnnualPremium))
                 return String.Empty;
-            }
+
+            decimal creditCharge = CalculateCreditCharge(customer.AnnualPremium);
+            decimal totalPremium = TotalPremium(customer.AnnualPremium, creditCharge);  
+            decimal averageMonthlyPremium = AverageMonthlyPremium(totalPremium);
+            decimal[] monthlyPayments = CalculateMonthlyPayments(averageMonthlyPremium, totalPremium);
+            decimal initialMonthlyPayment = monthlyPayments[0];
+            decimal otherMonthlyPaymentsAmount = monthlyPayments[1];
+
+            // Invalid calculated values
+            if (!CheckValidAmount(initialMonthlyPayment)
+                || !CheckValidAmount(otherMonthlyPaymentsAmount))
+                return String.Empty;
+
+            var tokenValues = new
+            {
+                CurrentDate = DateTime.Today.ToShortDateString(),
+                FullName = $"{customer.Title} {customer.FirstName} {customer.Surname}",
+                Salutation = $"{customer.Title} {customer.Surname}",
+                ProductName = customer.ProductName,
+                PayoutAmount = customer.PayoutAmount.ToString("C"),
+                AnnualPremium = customer.AnnualPremium.ToString("C"),
+                CreditCharge = creditCharge.ToString("C"),
+                AnnualPremiumPlusCreditCharge = totalPremium.ToString("C"),
+                InitialMonthlyPaymentAmount = initialMonthlyPayment.ToString("C"),
+                OtherMonthlyPaymentsAmount = otherMonthlyPaymentsAmount.ToString("C")
+            };
+            return templateText.FormatToken(tokenValues);
         }
 
         /// <summary>
-        /// Check if the amount is numeric. Used double to check both int and decimal
+        /// Check if the amount is numeric and greater than 0. Used double to check both int and decimal.
         /// </summary>
         /// <param name="amount"></param>
         /// <returns></returns>
-        public bool CheckValidAmount(string amount)
+        public bool CheckValidAmount(decimal amount)
         {
             double v;
-            return (double.TryParse(amount, out v));
+            return ((double.TryParse(amount.ToString(), out v)) && (amount > 0));
         }
 
         /// <summary>
@@ -219,18 +144,39 @@ namespace LetterGenerator.Service
         }
 
         /// <summary>
+        /// Calculate the total premium.
+        /// </summary>
+        /// <param name="annualPremium"></param>
+        /// <param name="creditCharge"></param>
+        /// <returns></returns>
+        public decimal TotalPremium(decimal annualPremium, decimal creditCharge)
+        {
+            return annualPremium + creditCharge;
+        }
+
+        /// <summary>
+        /// Calculate the average monthly premium.
+        /// </summary>
+        /// <param name="totalPremium"></param>
+        /// <returns></returns>
+        public decimal AverageMonthlyPremium(decimal totalPremium)
+        {
+            return totalPremium / 12;
+        }
+
+        /// <summary>
         /// Calculate the amount to be paid monthly.
         /// </summary>
         /// <param name="averageMonthlyPremium"></param>
         /// <param name="annualPremiumPlusCreditCharge"></param>
         /// <returns> The initial and other payment amounts</returns>
-        public decimal[] CalculateMonthlyPayments(decimal averageMonthlyPremium, decimal annualPremiumPlusCreditCharge)
+        public decimal[] CalculateMonthlyPayments(decimal averageMonthlyPremium, decimal totalPremium)
         {
             string averageMonthlyPremiumString = averageMonthlyPremium.ToString();
             decimal initialPayment = 0.0M;
             decimal otherPayments = 0.0M;
 
-            if (averageMonthlyPremium <= 0 || annualPremiumPlusCreditCharge <= 0)
+            if (averageMonthlyPremium <= 0 || totalPremium <= 0)
                 Console.WriteLine("Invalid amount");
 
             // If the amount value has more than 2 numbers after the decimal then it's not a valid amount.
@@ -239,7 +185,7 @@ namespace LetterGenerator.Service
                 // Get exactly 2 decimal places
                 decimal truncatedValue = Math.Truncate(averageMonthlyPremium * 100) / 100;
                 otherPayments = truncatedValue;
-                initialPayment = Decimal.Round(annualPremiumPlusCreditCharge - (otherPayments * 11), 2);
+                initialPayment = Decimal.Round(totalPremium - (otherPayments * 11), 2);
             }
 
             else

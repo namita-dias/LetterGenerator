@@ -10,10 +10,14 @@ namespace LetterGenerator.Service
             string templateFilePath = "..\\..\\..\\InputFiles\\Email_Template.txt";
             string outputFilePath = "..\\..\\..\\OutputFiles";
 
-            ILetterProcessor letterProcessor = new LetterProcessor();
-            letterProcessor.dataFilePath = dataFilePath;
-            letterProcessor.templateFilePath = templateFilePath;
-            letterProcessor.outputFilePath = outputFilePath;
+            IFileProcessor fileProcessor = new FileProcessor();
+
+            fileProcessor.dataFilePath = dataFilePath;
+            fileProcessor.templateFilePath = templateFilePath;
+            fileProcessor.outputFilePath = outputFilePath;
+
+            ILetterProcessor letterProcessor = new LetterProcessor(fileProcessor);
+
             letterProcessor.StartProcess();
         }
     }

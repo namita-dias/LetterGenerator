@@ -1,5 +1,6 @@
 using LetterGenerator.Service;
 using LetterGenerator.Service.Models;
+using Moq;
 using NUnit.Framework;
 using System.Collections.Generic;
 using System.IO;
@@ -9,90 +10,113 @@ namespace LetterGenerator.Tests
     public class Tests
     {
         private ILetterProcessor letterProcessor;
-        private IEnumerable<Customer> customers;
-        private string outputFileName;
+        private Mock<IFileProcessor> mockFileProcessor;
+        private Customer validCustomer;
+        private Customer invalidCustomer;
 
         [SetUp]
         public void Setup()
         {
-            customers = new Customer[] 
-            { 
-                new Customer
-                {
-                    Id = 1,
-                    FirstName = "TestFirstName",
-                    Surname = "TestSurname",
-                    ProductName = "Test Product",
-                    PayoutAmount = 200000,
-                    AnnualPremium = 150
-                }
+            validCustomer = new Customer
+            {
+                Id = 1,
+                FirstName = "TestFirstName",
+                Surname = "TestSurname",
+                ProductName = "Test Product",
+                PayoutAmount = 200000,
+                AnnualPremium = 150
             };
 
-            letterProcessor = new LetterProcessor();
+            invalidCustomer = new Customer
+            {
+                Id = 2,
+                FirstName = "TestFirstName",
+                Surname = "TestSurname",
+                ProductName = "Test Product",
+                PayoutAmount = 0,
+                AnnualPremium = -15
+            };
 
-            letterProcessor.dataFilePath = "..\\..\\..\\InputFiles\\Customer.csv";
-            letterProcessor.templateFilePath = "..\\..\\..\\InputFiles\\Email_Template.txt";
-            letterProcessor.outputFilePath = "..\\..\\..\\OutputFiles";
+            mockFileProcessor = new Mock<IFileProcessor>();
+            mockFileProcessor.Setup(s => s.ReadTextFile(It.IsAny<string>())).Returns("{FullName}");
 
-            outputFileName = "1TestFirstNameTestSurname.txt";
+            letterProcessor = new LetterProcessor(mockFileProcessor.Object);
         }
 
-        [TestCase("125")]
-        public void CheckValidAmount_ValidAmount_ReturnsTrue(string value)
+        [Test]
+        public void CheckValidAmount_ValidAmount_ReturnsTrue()
         {
             //act
-            bool result = letterProcessor.CheckValidAmount(value);
+            bool result = letterProcessor.CheckValidAmount(validCustomer.PayoutAmount);
 
             //assert
             Assert.IsTrue(result);
         }
 
-        [TestCase("125A")]
-        public void CheckValidAmount_ValidAmount_ReturnsFalse(string value)
+        [Test]
+        public void CheckValidAmount_InValidAmount_ReturnsFalse()
         {
             //act
-            bool result = letterProcessor.CheckValidAmount(value);
+            bool result = letterProcessor.CheckValidAmount(invalidCustomer.PayoutAmount);
 
             //assert
             Assert.IsFalse(result);
         }
 
-        [TestCase(125.00)]
-        public void CalculateCreditCharge_ValidAmount_ReturnsValidAmount(decimal value)
+        [Test]
+        public void CalculateCreditCharge_ValidAmount_ReturnsValidAmount()
         {
+            //arrange
+            decimal expected = 7.5M;
+
             //act
-            decimal result = letterProcessor.CalculateCreditCharge(value);
+            decimal result = letterProcessor.CalculateCreditCharge(validCustomer.AnnualPremium);
 
             //assert
-            Assert.AreEqual(6.25, result);
+            Assert.AreEqual(expected, result);
         }
 
-        [TestCase(-125.00)]
-        public void CalculateCreditCharge_InValidAmount_ReturnsZero(decimal value)
+        [Test]
+        public void CalculateCreditCharge_InValidAmount_ReturnsZero()
         {
+            //arrange
+            decimal expected = 0;
+
             //act
-            decimal result = letterProcessor.CalculateCreditCharge(value);
+            decimal result = letterProcessor.CalculateCreditCharge(invalidCustomer.AnnualPremium);
 
             //assert
-            Assert.AreEqual(0, result);
+            Assert.AreEqual(expected, result);
         }
 
-        [TestCase(10.41666666, 125)]
-        public void CalculateMonthlyPayments_ValidAmounts_ReturnsValidArrayOfAmount(decimal value1, decimal value2)
+        [Test]
+        public void CalculateMonthlyPayments_ValidAnnualPremium_ReturnsValidPaymentAmount()
         {
+            //arrange
+            decimal creditCharge = letterProcessor.CalculateCreditCharge(validCustomer.AnnualPremium);
+            decimal totalPremium = letterProcessor.TotalPremium(validCustomer.AnnualPremium, creditCharge);
+            decimal averageMonthlyPremium = letterProcessor.AverageMonthlyPremium(totalPremium);
+            decimal[] expected = new decimal[] { 13.18M, 13.12M };
+
             //act
-            decimal[] result = letterProcessor.CalculateMonthlyPayments(value1, value2);
+            decimal[] result = letterProcessor.CalculateMonthlyPayments(averageMonthlyPremium, totalPremium);
 
             //assert
-            Assert.AreEqual(10.49, result[0]);
-            Assert.AreEqual(10.41, result[1]);
+            Assert.AreEqual(expected[0], result[0]);
+            Assert.AreEqual(expected[1], result[1]);
         }
 
-        [TestCase(-10.41666666, 125)]
-        public void CalculateMonthlyPayments_InValidAmount_ReturnsZero(decimal value1, decimal value2)
+        [Test]
+        public void CalculateMonthlyPayments_InvalidAnnualPremium_ReturnsZero()
         {
+            //arrange
+            decimal creditCharge = letterProcessor.CalculateCreditCharge(invalidCustomer.AnnualPremium);
+            decimal totalPremium = letterProcessor.TotalPremium(invalidCustomer.AnnualPremium, creditCharge);
+            decimal averageMonthlyPremium = letterProcessor.AverageMonthlyPremium(totalPremium);
+            decimal[] expected = new decimal[] { 0, 0 };
+
             //act
-            decimal[] result = letterProcessor.CalculateMonthlyPayments(value1, value2);
+            decimal[] result = letterProcessor.CalculateMonthlyPayments(averageMonthlyPremium, totalPremium);
 
             //assert
             Assert.AreEqual(0, result[0]);
@@ -100,35 +124,29 @@ namespace LetterGenerator.Tests
         }
 
         [Test]
-        public void ProcessCustomer_ValidCustomer_CreatesLetter()
+        public void ProcessCustomer_ValidCustomer_LetterCreated()
         {
-            //arrange
-            string path = Path.Combine(letterProcessor.outputFilePath, outputFileName);
-            // Delete the file if it exists.
-            if (File.Exists(path))
-                File.Delete(path);
-
             //act
-            letterProcessor.ProcessCustomer(customers);
+            letterProcessor.ProcessCustomer(validCustomer);
 
             //assert
-            Assert.IsTrue(File.Exists(path));
+            mockFileProcessor.Verify(x => x.WriteFile($" {validCustomer.FirstName} {validCustomer.Surname}",
+                                                        mockFileProcessor.Object.outputFilePath,
+                                                        $"{validCustomer.Id}{validCustomer.FirstName}{validCustomer.Surname}.txt"),
+                                                        Times.Once);
         }
 
         [Test]
         public void ProcessCustomer_InValidCustomer_LetterNotCreated()
         {
-            //arrange
-            string path = Path.Combine(letterProcessor.outputFilePath, outputFileName);
-            // Delete the file if it exists.
-            if (File.Exists(path))
-                File.Delete(path);
-
             //act
-            letterProcessor.ProcessCustomer(null);
+            letterProcessor.ProcessCustomer(invalidCustomer);
 
             //assert
-            Assert.IsFalse(File.Exists(path));
+            mockFileProcessor.Verify(x => x.WriteFile($" {invalidCustomer.FirstName} {invalidCustomer.Surname}",
+                                                        mockFileProcessor.Object.outputFilePath, 
+                                                        $"{invalidCustomer.Id}{invalidCustomer.FirstName}{invalidCustomer.Surname}.txt"), 
+                                                        Times.Never);
         }
     }
 }

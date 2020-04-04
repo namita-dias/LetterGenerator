@@ -5,13 +5,12 @@ namespace LetterGenerator.Service
 {
     public interface ILetterProcessor
     {
-        string dataFilePath { get; set; }
-        string templateFilePath { get; set; }
-        string outputFilePath { get; set; }
         void StartProcess();
-        void ProcessCustomer(IEnumerable<Customer> customers);
+        void ProcessCustomer(Customer customer);
         decimal CalculateCreditCharge(decimal annualPremium);
-        decimal[] CalculateMonthlyPayments(decimal averageMonthlyPremium, decimal annualPremiumPlusCreditCharge);
-        bool CheckValidAmount(string amount);
+        decimal TotalPremium(decimal annualPremium, decimal creditCharge);
+        decimal AverageMonthlyPremium(decimal totalPremium);
+        decimal[] CalculateMonthlyPayments(decimal averageMonthlyPremium, decimal totalPremium);
+        bool CheckValidAmount(decimal amount);
     }
 }
