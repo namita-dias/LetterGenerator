@@ -1,12 +1,8 @@
-﻿using CsvHelper;
-using LetterGenerator.Service.Models;
+﻿using LetterGenerator.Service.Models;
 using StringTokenFormatter;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
 using System.Linq;
-using System.Text;
 
 namespace LetterGenerator.Service
 {
@@ -22,7 +18,7 @@ namespace LetterGenerator.Service
 
         public void StartProcess()
         {
-            // If both the input files exist then process the .csv file
+            // If both the customer file and email template file exist then process the customer file
             if (fileProcessor.FileExists(fileProcessor.dataFilePath)
                 && fileProcessor.FileExists(fileProcessor.templateFilePath))
                 ProcessData();

@@ -1,7 +1,5 @@
 ﻿using LetterGenerator.Service.Models;
-using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace LetterGenerator.Service
 {

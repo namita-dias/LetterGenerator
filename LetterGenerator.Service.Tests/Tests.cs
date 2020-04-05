@@ -2,8 +2,6 @@ using LetterGenerator.Service;
 using LetterGenerator.Service.Models;
 using Moq;
 using NUnit.Framework;
-using System.Collections.Generic;
-using System.IO;
 
 namespace LetterGenerator.Tests
 {
