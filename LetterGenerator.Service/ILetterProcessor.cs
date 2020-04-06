@@ -5,8 +5,9 @@ namespace LetterGenerator.Service
 {
     public interface ILetterProcessor
     {
-        void StartProcess();
-        void ProcessCustomer(Customer customer);
+        void ProcessLetters(string csvFilePath, string letterTemplateFilePath, string outputFolderPath);
+        void ProcessCustomer(Customer customer, string letterTemplateFilePath, string outputFolderPath);
+        string LoadValues(string templateText, Customer customer);
         decimal CalculateCreditCharge(decimal annualPremium);
         decimal TotalPremium(decimal annualPremium, decimal creditCharge);
         decimal AverageMonthlyPremium(decimal totalPremium);

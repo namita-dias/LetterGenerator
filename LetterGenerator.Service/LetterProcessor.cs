@@ -16,51 +16,56 @@ namespace LetterGenerator.Service
             fileProcessor = processor;
         }
 
-        public void StartProcess()
+        public void ProcessLetters(string csvFilePath, string letterTemplateFilePath, string outputFolderPath )
         {
-            // If both the customer file and email template file exist then process the customer file
-            if (fileProcessor.FileExists(fileProcessor.dataFilePath)
-                && fileProcessor.FileExists(fileProcessor.templateFilePath))
-                ProcessData();
-        }
-
-        /// <summary>
-        /// Process the customer records.
-        /// </summary>
-        public void ProcessData()
-        {
-            List<Customer> customers = new List<Customer>();
-            customers = fileProcessor.ReadCSVFile(fileProcessor.dataFilePath);
-            if (customers.Count() > 0)
+            if (!fileProcessor.FileExists(csvFilePath)
+                  || !fileProcessor.FileExists(letterTemplateFilePath))
             {
-                foreach (Customer customer in customers)
-                    ProcessCustomer(customer);
+                Console.WriteLine("Input files not available");
+                return;
             }
-            else
+
+            IEnumerable<Customer> customers = fileProcessor.ReadCSVFile(csvFilePath);
+
+            if (!customers.Any())
+            {
                 Console.WriteLine("No records in the file.");
+                return;
+            }
+
+            foreach (Customer customer in customers)
+            {
+                ProcessCustomer(customer, letterTemplateFilePath, outputFolderPath);
+            }
         }
 
         /// <summary>
         /// Process the customer
         /// </summary>
         /// <param name="customer"></param>
-        public void ProcessCustomer(Customer customer)
+        public void ProcessCustomer(Customer customer, string letterTemplateFilePath, string outputFolderPath)
         {
             try
             {   // Load the email template
                 string templateText = String.Empty;
-                templateText = fileProcessor.ReadTextFile(fileProcessor.templateFilePath);
+                templateText = fileProcessor.ReadTextFile(letterTemplateFilePath);
 
                 // Get values for the email template tokens
                 string outputText = String.Empty;
                 if (String.IsNullOrEmpty(templateText))
+                {
+                    Console.WriteLine("Email template file has no content");
                     return;
+                }
                 outputText = LoadValues(templateText, customer);
 
                 // Write the output file 
                 if (String.IsNullOrEmpty(outputText))
+                {
+                    Console.WriteLine("Output text not created for customer - " + customer.Id);
                     return;
-                fileProcessor.WriteFile(outputText, fileProcessor.outputFilePath,
+                }
+                fileProcessor.WriteFile(outputText, outputFolderPath,
                                             $"{customer.Id}{customer.FirstName}{customer.Surname}.txt");
             }
             catch (Exception ex)
@@ -81,7 +86,9 @@ namespace LetterGenerator.Service
             // Invalid values
             if (!CheckValidAmount(customer.PayoutAmount)
                 || !CheckValidAmount(customer.AnnualPremium))
+            {
                 return String.Empty;
+            }
 
             decimal creditCharge = CalculateCreditCharge(customer.AnnualPremium);
             decimal totalPremium = TotalPremium(customer.AnnualPremium, creditCharge);  
@@ -93,7 +100,9 @@ namespace LetterGenerator.Service
             // Invalid calculated values
             if (!CheckValidAmount(initialMonthlyPayment)
                 || !CheckValidAmount(otherMonthlyPaymentsAmount))
+            {
                 return String.Empty;
+            }
 
             var tokenValues = new
             {
@@ -173,7 +182,9 @@ namespace LetterGenerator.Service
             decimal otherPayments = 0.0M;
 
             if (averageMonthlyPremium <= 0 || totalPremium <= 0)
+            {
                 Console.WriteLine("Invalid amount");
+            }
 
             // If the amount value has more than 2 numbers after the decimal then it's not a valid amount.
             else if ((averageMonthlyPremiumString.Substring(averageMonthlyPremiumString.IndexOf(".") + 1).Length) > 2)
@@ -185,7 +196,9 @@ namespace LetterGenerator.Service
             }
 
             else
+            {
                 initialPayment = otherPayments = averageMonthlyPremium;
+            }
 
             return new decimal[] { initialPayment, otherPayments };
         }
