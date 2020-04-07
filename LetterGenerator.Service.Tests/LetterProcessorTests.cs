@@ -2,6 +2,7 @@ using LetterGenerator.Service;
 using LetterGenerator.Service.Models;
 using Moq;
 using NUnit.Framework;
+using System;
 
 namespace LetterGenerator.Tests
 {
@@ -44,7 +45,7 @@ namespace LetterGenerator.Tests
 
             letterProcessor = new LetterProcessor(mockFileProcessor.Object);
 
-            expectedOutPutForValidCustomer = "06/04/2020 FAO:  TestFirstName TestSurname RE: Your Renewal Dear  TestSurnameWe hereby invite you to renew your Insurance Policy, subject to the following terms.Your chosen insurance product is Test Product. The amount payable to you in the event of a valid claim will be £200,000.00. Your annual premium will be £150.00. If you choose to pay by Direct Debit, we will add a credit charge of £7.50, bringing the total to £157.50. This is payable by an initial payment of £13.18, followed by 11 payments of £13.12 each.Please get in touch with us to arrange your renewal by visiting https://www.regallutoncodingtest.co.uk/renew or calling us on 01625 123456. Kind Regards Regal Luton";
+            expectedOutPutForValidCustomer = DateTime.Today.ToShortDateString() + " FAO:  TestFirstName TestSurname RE: Your Renewal Dear  TestSurnameWe hereby invite you to renew your Insurance Policy, subject to the following terms.Your chosen insurance product is Test Product. The amount payable to you in the event of a valid claim will be £200,000.00. Your annual premium will be £150.00. If you choose to pay by Direct Debit, we will add a credit charge of £7.50, bringing the total to £157.50. This is payable by an initial payment of £13.18, followed by 11 payments of £13.12 each.Please get in touch with us to arrange your renewal by visiting https://www.regallutoncodingtest.co.uk/renew or calling us on 01625 123456. Kind Regards Regal Luton";
         }
 
         [Test]
